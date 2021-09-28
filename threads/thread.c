@@ -63,6 +63,10 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+//project 1
+static struct list sleep_list;//slepp중인 thread가 들어갈 sleep리스트
+static int64_t next_tick_to_awake; // 다음에 깨어날 list의 wakeup_tick값(최소값)을 저장할 변수
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -112,6 +116,9 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+
+	//project 1
+	list_init(&sleep_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -399,7 +406,7 @@ static void
 kernel_thread (thread_func *function, void *aux) {
 	ASSERT (function != NULL);
 
-	intr_enable ();       /* The scheduler runs with interrupts off. */ //인터럽트를 끈다
+	intr_enable ();       /* Because The scheduler runs with interrupts off. */ //인터럽트를 킨다
 	function (aux);       /* Execute the thread function. */ //어떤 기능을 하는 함수를 실행한다
 	thread_exit ();       /* If function() returns, kill the thread. */ // 함수가 끝나면 kerner thread를 종료한다
 }
@@ -597,4 +604,60 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+//project 1
+void
+thread_sleep (int64_t ticks){
+	struct thread *this;
+	this = thread_current();
+
+	if(this == idle_thread){// 아이들이면 멈춰라(잘못된것)
+		ASSERT(0);
+	}
+	else{
+		enum intr_level old_level;
+		old_level = intr_disable(); // 인터럽트 막는다
+
+		update_next_tick_to_awake(this->wakeup_tick = ticks); //update awake ticks 잘 모르겠네ㅎ 깨어나야할 스레드의 tick값 갱신
+
+		list_push_back(&sleep_list, &this->elem); //sleep리스트에 넣기
+
+		thread_block(); //지금 쓰레드 블락하고
+
+		intr_set_level(old_level); //continue interrupt 이것도 잘 모르겠네 인터럽트 다시받기
+	}
+}
+
+//project 1
+void
+thread_awake (int64_t wakeup_tick){
+	next_tick_to_awake = INT64_MAX; //초기화하고
+
+	struct list_elem *sleeping;
+	sleeping = list_begin(&sleep_list);//헤드를 sleeping변수로 가져온다
+
+	while(sleeping != list_end(&sleep_list)){//sleep리스트를 순회하며 꺠워야 할 스레드를 sleep리스트에서 제거 하고 unblock한다
+		struct thread *th = list_entry(sleeping, struct thread, elem);	//take sleeping thread 이것도 잘 모르겠음^^
+
+		if(wakeup_tick >= th->wakeup_tick){ // 시간이 됐으면
+			sleeping = list_remove(&th->elem);//sleep리스트에서 삭제하고
+			thread_unblock(th);//블락을 푼다
+		}else{
+			sleeping = list_next(sleeping);//다음거로 이동
+			update_next_tick_to_awake(th->wakeup_tick);// update wakeup_tick 이것도 모르겠는걸?
+		}
+	}
+}
+
+//project 1
+void
+update_next_tick_to_awake(int64_t ticks){
+	next_tick_to_awake = (next_tick_to_awake >ticks)? ticks :  next_tick_to_awake; //제일 작은 tick을 찾는다
+}
+
+//project 1
+int64_t
+get_next_tick_to_awake(void){
+	return next_tick_to_awake;
 }

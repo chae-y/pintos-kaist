@@ -111,6 +111,7 @@ timer_sleep (int64_t ticks) {
 		//sleep함수를 호출하면 해당 스레드를 sleep_list에 넣고 이 스레드를 깨워야 할 때 thread_awake() 함수를 호출한다
 		//깨어난 스레드를 다시 ready_list로 옮기는 식으로 구현하면 sleep_list에 있는 스레드는 cpu를 점유하지 않고 자신이 꺠어나야 할 때를까지 기다릴 수 있다.
 */
+	//project 1
 	thread_sleep(start+ticks);
 }
 
@@ -143,6 +144,12 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+
+	//project 1
+	//매 tick마다 sleep리스트를 체크하며 깨어날 스레드가 있는지 확인
+	if(get_next_tick_to_awake() <= ticks){
+		thread_awake(ticks);
+	}	
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

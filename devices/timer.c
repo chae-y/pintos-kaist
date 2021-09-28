@@ -29,6 +29,8 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
+static struct list sleep_list; //project 1
+
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
@@ -88,13 +90,28 @@ timer_elapsed (int64_t then) {
 }
 
 /* Suspends execution for approximately TICKS timer ticks. */
+// 현재 스레드를 ticks만큼 재우는 역할(sleep(ticks))
 void
 timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
+
+/* 원래 코드
+	//busy waiting 방식을 사용
+	// sleep중인 스레드가 계속해서 cpu 점유
+	while (timer_elapsed (start) < ticks)//시간이 덜 됐으면
 		thread_yield ();
+		//위 함수가 호출되면 해당 함수를 호출 한 스레드는 다른스레드에게 cpu를 양보한다. 
+		//그리고 실행 될 준비가 되어있는 스레드들이 존재하는 ready_list에 들어가게 된다.
+		//일어날 때까지 계속계속 확인하는 것
+		//이는 쓸모없는 context switching이 많이 일어난다는 것이고 cpu를 많이 점유하고 있는 것이다.
+		//그래서 이를 한번만 일어나도록 하는게 목표이다.
+		//->이를 방지하기 위해 완전히 sleep상태에 들어가 스레드를 저장할 sleep_list를 구현한다
+		//sleep함수를 호출하면 해당 스레드를 sleep_list에 넣고 이 스레드를 깨워야 할 때 thread_awake() 함수를 호출한다
+		//깨어난 스레드를 다시 ready_list로 옮기는 식으로 구현하면 sleep_list에 있는 스레드는 cpu를 점유하지 않고 자신이 꺠어나야 할 때를까지 기다릴 수 있다.
+*/
+	thread_sleep(start+ticks);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -160,6 +177,7 @@ busy_wait (int64_t loops) {
 }
 
 /* Sleep for approximately NUM/DENOM seconds. */
+//스레드를 양보한다 자고있는 스레드들을 ready_list에 넣지 말고 다른 곳에 넣어뒀다가 매 tick마다 거기서 일어날 때가 된 애들을 꺠워서 readylist에 넣어줌
 static void
 real_time_sleep (int64_t num, int32_t denom) {
 	/* Convert NUM/DENOM seconds into timer ticks, rounding down.

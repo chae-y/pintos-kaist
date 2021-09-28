@@ -92,6 +92,9 @@ static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
    It is not safe to call thread_current() until this function
    finishes. */
+   //main()을 실행하고 있는 현재의 실행흐름을 하나의 커널스레드로 생각하고 초기화 한다
+   //최초의 커널쓰레드
+   //구조체가 여기서 초기화
 void
 thread_init (void) {
 	ASSERT (intr_get_level () == INTR_OFF);
@@ -119,18 +122,23 @@ thread_init (void) {
 
 /* Starts preemptive thread scheduling by enabling interrupts.
    Also creates the idle thread. */
+//idle 스레드 만들기 인터럽트 활성화
+//idel 스레드 ->아무것도 하지않는 스레드 -->ready queue가 비어있을 때 idle thread가 동작하므로써 cpu가 무조건 하나의 커널 스레드를 실행시키는 상태를 유지하게 만들어준다
 void
 thread_start (void) {
 	/* Create the idle thread. */
 	struct semaphore idle_started;
+	//세마포어 1->0 만들고
 	sema_init (&idle_started, 0);
+
 	thread_create ("idle", PRI_MIN, idle, &idle_started);
+	//크리에이트 하는 동안 보호(idle함수에서 다시 세마포어 1로 만듦)
 
 	/* Start preemptive thread scheduling. */
-	intr_enable ();
+	intr_enable ();//인터럽트 활성화->인터럽트가 활성화 되어야만 스케줄링이 작동할 수 있음
 
 	/* Wait for the idle thread to initialize idle_thread. */
-	sema_down (&idle_started);
+	sema_down (&idle_started); //sema값을 1감소(이미 0이라면 실행을 멈추고 sema가 1이 될 때까지 기다림)
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -185,12 +193,12 @@ thread_create (const char *name, int priority,
 	ASSERT (function != NULL);
 
 	/* Allocate thread. */
-	t = palloc_get_page (PAL_ZERO);
+	t = palloc_get_page (PAL_ZERO); //스레드를 위한 메모리 할당-4kb
 	if (t == NULL)
 		return TID_ERROR;
 
 	/* Initialize thread. */
-	init_thread (t, name, priority);
+	init_thread (t, name, priority); //스레드 구조체 초기화
 	tid = t->tid = allocate_tid ();
 
 	/* Call the kernel_thread if it scheduled.
@@ -205,6 +213,7 @@ thread_create (const char *name, int priority,
 	t->tf.eflags = FLAG_IF;
 
 	/* Add to run queue. */
+	//ready queue에 넣는다
 	thread_unblock (t);
 
 	return tid;
@@ -240,7 +249,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_push_back (&ready_list, &t->elem); //리스트의 맨 뒤에 넣음(round-robin방식)
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -361,7 +370,7 @@ idle (void *idle_started_ UNUSED) {
 	struct semaphore *idle_started = idle_started_;
 
 	idle_thread = thread_current ();
-	sema_up (idle_started);
+	sema_up (idle_started); //세마포어 업
 
 	for (;;) {
 		/* Let someone else run. */
@@ -385,13 +394,14 @@ idle (void *idle_started_ UNUSED) {
 }
 
 /* Function used as the basis for a kernel thread. */
+//이게 실행하는 건가?
 static void
 kernel_thread (thread_func *function, void *aux) {
 	ASSERT (function != NULL);
 
-	intr_enable ();       /* The scheduler runs with interrupts off. */
-	function (aux);       /* Execute the thread function. */
-	thread_exit ();       /* If function() returns, kill the thread. */
+	intr_enable ();       /* The scheduler runs with interrupts off. */ //인터럽트를 끈다
+	function (aux);       /* Execute the thread function. */ //어떤 기능을 하는 함수를 실행한다
+	thread_exit ();       /* If function() returns, kill the thread. */ // 함수가 끝나면 kerner thread를 종료한다
 }
 
 
@@ -418,9 +428,9 @@ init_thread (struct thread *t, const char *name, int priority) {
    idle_thread. */
 static struct thread *
 next_thread_to_run (void) {
-	if (list_empty (&ready_list))
-		return idle_thread;
-	else
+	if (list_empty (&ready_list)) 
+		return idle_thread;//비어 있을 때는 idle
+	else //아니면 맨앞에서 꺼냄
 		return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
@@ -540,8 +550,8 @@ do_schedule(int status) {
 
 static void
 schedule (void) {
-	struct thread *curr = running_thread ();
-	struct thread *next = next_thread_to_run ();
+	struct thread *curr = running_thread (); //현재
+	struct thread *next = next_thread_to_run (); //다음꺼(없으면 idle)
 
 	ASSERT (intr_get_level () == INTR_OFF);
 	ASSERT (curr->status != THREAD_RUNNING);

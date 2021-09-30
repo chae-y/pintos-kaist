@@ -160,18 +160,6 @@ thread_tick (void) {
 	else
 		kernel_ticks++;
 
-	struct list_elem *e;
-	int64_t current_tick = timer_ticks();
-	for (e = list_begin(&sleep_list); e!= list_end(&sleep_list);){
-		// list 다음걸 미리 가져와야됨. 안그러면 밑에 remove함수 때매 이상해짐
-		struct thread *t = list_entry(e, struct thread, elem);
-		e = list_next(e);
-		if (t->sleep_ticks < current_tick){
-			list_remove(&t->elem);
-			thread_unblock(t); // thread unblock 에서 ready list에 넣어줌
-		}
-	}
-
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
 		intr_yield_on_return ();
@@ -659,3 +647,5 @@ void thread_awake(int64_t ticks){
 		}
 	}
 }
+
+//여기 성공?

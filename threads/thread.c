@@ -223,6 +223,11 @@ thread_create (const char *name, int priority,
 	//ready queue에 넣는다
 	thread_unblock (t);
 
+	//project 2
+	if (t->priority > thread_current() -> priority){//새롭게 만들어진 스레드의 우선순위가 높다면 양보해라
+		thread_yield();
+	}
+
 	return tid;
 }
 
@@ -256,7 +261,11 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem); //리스트의 맨 뒤에 넣음(round-robin방식)
+	// list_push_back (&ready_list, &t->elem); //리스트의 맨 뒤에 넣음(round-robin방식)
+	
+	//project 2
+	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);//우선순위로 정렬 왜 여기서는 양보 안해주지???잘 모르겠네
+
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -310,6 +319,8 @@ thread_exit (void) {
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
+// 현재 스레드를 비활성화 시키고 ready_list에 삽입한다.
+//들어오는 모든 인터럽트 무시함 
 void
 thread_yield (void) {
 	struct thread *curr = thread_current ();
@@ -318,16 +329,30 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+	if (curr != idle_thread){
+		// list_push_back (&ready_list, &curr->elem);
+
+		//project 2
+		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
+	}
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
+//Sets the current thread's priority to new priority. If the current thread no longer has the highest priority, yields.
+//스레드의 우선순위가 변경되었을 때 우선순위에 따라 선점이 발생하도록 한다
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	// thread_current ()->priority = new_priority;
+	//project 2
+	if(!thread_mlfqs){///현재는 다단계큐이니까 thread_mlfqs는 다단계 피드백큐일때? 사실 잘 모르겠다
+		int previous_priority = thread_current()->priority; //현재꺼를 pre로
+		thread_current()->priority = new_priority;//new를 현재로 바꾼다
+
+		if(thread_current()->priority < previous_priority) // 순위가 내려갔다면
+			test_max_priority(); //readylist의 스레드들과 우선순위를 비교할 수 있도록 한다
+	}
 }
 
 /* Returns the current thread's priority. */
@@ -479,6 +504,7 @@ do_iret (struct intr_frame *tf) {
    It's not safe to call printf() until the thread switch is
    complete.  In practice that means that printf()s should be
    added at the end of the function. */
+//새로운 스레드가 기동함에 따라 context switching을 수행한다
 static void
 thread_launch (struct thread *th) {
 	uint64_t tf_cur = (uint64_t) &running_thread ()->tf;
@@ -542,6 +568,7 @@ thread_launch (struct thread *th) {
  * This function modify current thread's status to status and then
  * finds another thread to run and switches to it.
  * It's not safe to call printf() in the schedule(). */
+//현재 스레드를 status로 바꾸고 스케줄 실행
 static void
 do_schedule(int status) {
 	ASSERT (intr_get_level () == INTR_OFF);
@@ -555,6 +582,7 @@ do_schedule(int status) {
 	schedule ();
 }
 
+//running스레드를 빼내고 next스레드를 running시킨다
 static void
 schedule (void) {
 	struct thread *curr = running_thread (); //현재
@@ -619,13 +647,13 @@ thread_sleep (int64_t ticks){
 		enum intr_level old_level;
 		old_level = intr_disable(); // 인터럽트 막는다
 
-		update_next_tick_to_awake(this->wakeup_tick = ticks); //update awake ticks 잘 모르겠네ㅎ 깨어나야할 스레드의 tick값 갱신
+		update_next_tick_to_awake(this->wakeup_tick = ticks); //깨어나야할 스레드의 tick값 갱신
 
 		list_push_back(&sleep_list, &this->elem); //sleep리스트에 넣기
 
 		thread_block(); //지금 쓰레드 블락하고
 
-		intr_set_level(old_level); //continue interrupt 이것도 잘 모르겠네 인터럽트 다시받기
+		intr_set_level(old_level); //continue interrupt 인터럽트 다시받기
 	}
 }
 
@@ -645,7 +673,7 @@ thread_awake (int64_t wakeup_tick){
 			thread_unblock(th);//블락을 푼다
 		}else{
 			sleeping = list_next(sleeping);//다음거로 이동
-			update_next_tick_to_awake(th->wakeup_tick);// update wakeup_tick 이것도 모르겠는걸?
+			update_next_tick_to_awake(th->wakeup_tick);// awake를 바꾸고
 		}
 	}
 }
@@ -653,11 +681,45 @@ thread_awake (int64_t wakeup_tick){
 //project 1
 void
 update_next_tick_to_awake(int64_t ticks){
-	next_tick_to_awake = (next_tick_to_awake >ticks)? ticks :  next_tick_to_awake; //제일 작은 tick을 찾는다
+	next_tick_to_awake = (next_tick_to_awake >ticks)? ticks :  next_tick_to_awake; //작은 tick을 찾는다
 }
 
 //project 1
 int64_t
 get_next_tick_to_awake(void){
 	return next_tick_to_awake;
+}
+
+//project 2
+void
+test_max_priority(void){
+	struct thread *cp = thread_current();
+	struct thread *first_thread;
+
+	if(list_empty(&ready_list))
+		return;
+
+	first_thread = list_entry(list_front(&ready_list), struct thread, elem);
+
+	if(cp->priority < first_thread ->priority){ //현재와 첫번째꺼중 비교해서 현재가 더 높으면 양보한다
+		thread_yield();
+	}
+}
+
+//project 2
+bool
+cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *thread_a = list_entry(a, struct thread , elem);
+	struct thread *thread_b = list_entry(b, struct thread , elem);
+
+	return thread_a -> priority > thread_b ->priority;
+
+	// if(thread_a != NULL && thread_b != NULL){
+	// 	if(thread_a->priority > thread_b->priority){
+	// 		return true;
+	// 	}else{
+	// 		return false;
+	// 	}
+	// }
+	// return false; //여기는 왜 false를 줄까?
 }

@@ -84,6 +84,7 @@ timer_ticks (void) {
 
 /* Returns the number of timer ticks elapsed since THEN, which
    should be a value once returned by timer_ticks(). */
+// 들어온 인자 시간으로 부터 얼마나 시간이 지났는지 반환
 int64_t
 timer_elapsed (int64_t then) {
 	return timer_ticks () - then;

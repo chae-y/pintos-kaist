@@ -719,7 +719,7 @@ cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNU
 	// 		return true;
 	// 	}else{
 	// 		return false;
-	// 	}
+	// 	} 
 	// }
 	// return false; //여기는 왜 false를 줄까?
 }

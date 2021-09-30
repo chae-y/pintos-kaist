@@ -70,6 +70,10 @@ static tid_t allocate_tid (void);
 static struct list sleep_list;
 static int64_t next_tick_to_awake;
 
+// project 2-priority
+bool cmp_priority(const struct list_elem *, const struct list_elem *, void *aux UNUSED);
+void test_max_priority(void);
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -116,7 +120,6 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
-	list_init (&sleep_list);
 
 	//project 1-alarm clock
 	list_init (&sleep_list);
@@ -251,7 +254,10 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	// list_push_back (&ready_list, &t->elem);
+
+	//project 2 priority
+	list_insert_ordered (&ready_list, &t->elem, &cmp_priority, NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -314,7 +320,10 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		// list_push_back (&ready_list, &curr->elem);
+
+		//project 2-priority
+		list_insert_ordered(&ready_list, &curr->elem, &cmp_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -323,6 +332,9 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+
+	//project 2-priority
+	test_max_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -638,7 +650,7 @@ void thread_awake(int64_t ticks){
 	while(sleeping != list_end(&sleep_list)){
 		struct thread *th = list_entry(sleeping, struct thread, elem);
 		if(ticks >= th->wakeup_tick){ //깨울 시간이 되었는지 확인
-			sleeping = list_remove(&th -> elem); // list_remove에 list_next가 됨
+			sleeping = list_remove(&th -> elem); // list_remove는 list_next를 return 함
 			thread_unblock(th);
 		}
 		else{
@@ -648,4 +660,23 @@ void thread_awake(int64_t ticks){
 	}
 }
 
-//여기 성공?
+//project 2-priority
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	
+	struct thread *thread_a; 
+	struct thread *thread_b; 
+	thread_a = list_entry(a, struct thread, elem);
+	thread_b = list_entry(b, struct thread, elem);
+
+	return (thread_a->priority > thread_b->priority) ? true : false ;
+}	
+
+//project 2-priority
+void test_max_priority(void){
+
+	int run_priority = thread_get_priority();
+	struct list_elem *e = list_begin(&ready_list);
+	struct thread *t = list_entry(e, struct thread, elem);
+	if (run_priority < t->priority)
+		thread_yield();
+}

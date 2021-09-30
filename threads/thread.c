@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* MY) list of threads in that got blocked*/ 
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,7 +95,7 @@ static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
    It is not safe to call thread_current() until this function
    finishes. */
-void
+void	
 thread_init (void) {
 	ASSERT (intr_get_level () == INTR_OFF);
 
@@ -105,10 +108,11 @@ thread_init (void) {
 	};
 	lgdt (&gdt_ds);
 
-	/* Init the globla thread context */
+	/* Init the global thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -148,6 +152,18 @@ thread_tick (void) {
 #endif
 	else
 		kernel_ticks++;
+
+	struct list_elem *e;
+	int64_t current_tick = timer_ticks();
+	for (e = list_begin(&sleep_list); e!= list_end(&sleep_list);){
+		// list 다음걸 미리 가져와야됨. 안그러면 밑에 remove함수 때매 이상해짐
+		struct thread *t = list_entry(e, struct thread, elem);
+		e = list_next(e);
+		if (t->sleep_ticks < current_tick){
+			list_remove(&t->elem);
+			thread_unblock(t); // thread unblock 에서 ready list에 넣어줌
+		}
+	}
 
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
@@ -389,7 +405,7 @@ static void
 kernel_thread (thread_func *function, void *aux) {
 	ASSERT (function != NULL);
 
-	intr_enable ();       /* The scheduler runs with interrupts off. */
+	intr_enable ();       /* because the scheduler runs with interrupts off. 그래서 thread 실행 할 동안은 켜놓는(enable)하는거*/
 	function (aux);       /* Execute the thread function. */
 	thread_exit ();       /* If function() returns, kill the thread. */
 }
@@ -588,3 +604,8 @@ allocate_tid (void) {
 
 	return tid;
 }
+
+void thread_insert_sleep_list(void){
+	list_push_back(&sleep_list, &thread_current()->elem);
+}
+

@@ -66,6 +66,10 @@ static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 
+//project 1-alarm clock
+static struct list sleep_list;
+static int64_t next_tick_to_awake;
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -112,6 +116,9 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list);
+
+	//project 1-alarm clock
 	list_init (&sleep_list);
 
 	/* Set up a thread structure for the running thread. */
@@ -605,7 +612,50 @@ allocate_tid (void) {
 	return tid;
 }
 
-void thread_insert_sleep_list(void){
-	list_push_back(&sleep_list, &thread_current()->elem);
+//project 1-alarm clock
+void thread_sleep(int64_t ticks){
+
+	struct thread *t = thread_current();
+
+	ASSERT(t != idle_thread); 
+
+	enum intr_level old_level;
+	old_level = intr_disable();
+
+	t->wakeup_tick = ticks;
+	update_next_tick_to_awake(ticks);
+
+	list_push_back(&sleep_list, &t->elem);
+	thread_block();
+
+	intr_set_level(old_level);
 }
 
+//project 1-alarm clock
+void update_next_tick_to_awake(int64_t ticks) {
+	next_tick_to_awake = (next_tick_to_awake > ticks) ? ticks : next_tick_to_awake;
+}
+
+//project 1-alarm clock
+int64_t get_next_tick_to_awake(void){
+	return next_tick_to_awake;
+}
+
+//project 1-alarm clock
+void thread_awake(int64_t ticks){
+	next_tick_to_awake = INT64_MAX;
+
+	struct list_elem *sleeping = list_begin(&sleep_list);
+
+	while(sleeping != list_end(&sleep_list)){
+		struct thread *th = list_entry(sleeping, struct thread, elem);
+		if(ticks >= th->wakeup_tick){ //깨울 시간이 되었는지 확인
+			sleeping = list_remove(&th -> elem); // list_remove에 list_next가 됨
+			thread_unblock(th);
+		}
+		else{
+			sleeping = list_next(sleeping);
+			update_next_tick_to_awake(th->wakeup_tick);
+		}
+	}
+}

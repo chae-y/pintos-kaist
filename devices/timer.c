@@ -93,18 +93,11 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	// 원래 mechanism
+
+	//project 1-alarm clock
 	// while (timer_elapsed (start) < ticks)
 	// 	thread_yield ();
-
-	// MY)
-	enum intr_level old_level = intr_disable ();
-
-	thread_current()->sleep_ticks = start + ticks;
-	thread_insert_sleep_list();
-	thread_block();
-
-	intr_set_level(old_level);
+	thread_sleep(start+ticks);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -135,7 +128,11 @@ timer_print_stats (void) {
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	thread_tick ();
+	thread_tick (); //tick에 따라 일정 시간이 지나면 ready리스트의 첫번째 스레드를 실행
+	//project 1-alarm clock
+	if(ticks >= get_next_tick_to_awake()){
+		thread_awake(ticks);
+	}
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

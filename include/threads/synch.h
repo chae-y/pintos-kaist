@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 /* A counting semaphore. */
+// 공유 자원의 개수 (value) 와 공유 자원을 사용하기 위한 waiter list를 가진다
 struct semaphore {
 	unsigned value;             /* Current value. */
 	struct list waiters;        /* List of waiting threads. */
@@ -17,6 +18,7 @@ void sema_up (struct semaphore *);
 void sema_self_test (void);
 
 /* Lock. */
+// 현재 lock을 가지고 있는 thread 정보와 semaphore을 멤버로 가진다
 struct lock {
 	struct thread *holder;      /* Thread holding lock (for debugging). */
 	struct semaphore semaphore; /* Binary semaphore controlling access. */
@@ -29,6 +31,7 @@ void lock_release (struct lock *);
 bool lock_held_by_current_thread (const struct lock *);
 
 /* Condition variable. */
+// condition variable이 만족되기를 기다리는 waiter의 list
 struct condition {
 	struct list waiters;        /* List of waiting threads. */
 };

@@ -70,9 +70,6 @@ static tid_t allocate_tid (void);
 static struct list sleep_list;
 static int64_t next_tick_to_awake;
 
-// project 2-priority
-bool cmp_priority(const struct list_elem *, const struct list_elem *, void *aux UNUSED);
-void test_max_priority(void);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -668,7 +665,7 @@ bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *au
 	thread_a = list_entry(a, struct thread, elem);
 	thread_b = list_entry(b, struct thread, elem);
 
-	return (thread_a->priority > thread_b->priority) ? true : false ;
+	return thread_a->priority > thread_b->priority;
 }	
 
 //project 2-priority

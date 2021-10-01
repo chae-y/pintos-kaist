@@ -343,7 +343,7 @@ thread_yield (void) {
 //Sets the current thread's priority to new priority. If the current thread no longer has the highest priority, yields.
 //스레드의 우선순위가 변경되었을 때 우선순위에 따라 선점이 발생하도록 한다
 void
-thread_set_priority (int new_priority) {
+thread_set_priority (int new_priority) { // 시스템 콜
 	// thread_current ()->priority = new_priority;
 	//project 2
 	if(!thread_mlfqs){///현재는 다단계큐이니까 thread_mlfqs는 다단계 피드백큐일때? 사실 잘 모르겠다
@@ -351,6 +351,8 @@ thread_set_priority (int new_priority) {
 		thread_current()->priority = new_priority;//new를 현재로 바꾼다
 
 		if(thread_current()->priority < previous_priority) // 순위가 내려갔다면
+			//project 4
+			refresh_priority();
 			test_max_priority(); //readylist의 스레드들과 우선순위를 비교할 수 있도록 한다
 	}
 }
@@ -451,6 +453,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	//project 4
+	t->init_priority = priority;
+	t->wait_on_lock = NULL;
+	list_init(&t->donations);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -722,4 +729,46 @@ cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNU
 	// 	} 
 	// }
 	// return false; //여기는 왜 false를 줄까?
+}
+
+//project 4
+void donate_priority(void){
+	int depth;
+	struct thread *cur = thread_current();
+
+	for (depth =0; depth < 8; depth++){//타고타고 가서 순위 다 올려줘야함
+		if(!cur -> wait_on_lock)	break; //lock안걸려있음
+		struct thread *holder = cur->wait_on_lock -> holder;
+		holder->priority = cur->priority;
+		cur = holder;
+	}
+}
+
+//project 4
+void remove_with_lock(struct lock *lock){
+	struct list_elem *e;
+	struct thread *cur = thread_current();
+
+	for(e = list_begin(&cur->donations); e !=list_end(&cur->donations); e = list_next(e)){ //이걸 왜 다 도는지 모르겠어
+		struct thread *t = list_entry(e, struct thread, donation_elem);
+		if (t->wait_on_lock == lock){
+			list_remove(&t->donation_elem);
+		}
+	}
+}
+
+//project 4
+void refresh_priority(void){
+	struct thread *cur = thread_current();
+	cur->priority = cur->init_priority;
+	if (list_empty(&cur->donations) == false)
+	{
+		list_sort(&cur->donations, &cmp_priority, NULL);
+		struct thread *high;
+		high = list_entry(list_front(&cur->donations), struct thread, donation_elem);
+		if (high->priority > cur->priority)
+		{
+			cur->priority = high->priority;
+		}
+	}
 }

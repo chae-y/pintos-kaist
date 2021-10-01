@@ -92,9 +92,16 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 	int64_t wakeup_tick;	//project 1 
+	int init_priority;	//project 4
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+
+	//projet 4
+	struct list donations; //mutiple donation을 고려하기 위해 사용, 자신에게 priority를 나누어준 스레드들의 리스트
+	struct lock *wait_on_lock; // 해당 스레드가 대기하고 있는 lock자료구조의 주소를 저장, 스레드가 현재 얻기 위해 기다리고 있는 lock으로 스레드는 이 lock이 release 되기를 기다린다. do
+	struct list_elem donation_elem; // mutiple donation을 고려하기 위해 사용
+
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -153,5 +160,10 @@ int64_t get_next_tick_to_awake(void);
 //project 2
 void test_max_priority(void);
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);//unused가 뭔지 모르겠다
+
+//project 4
+void donate_priority(void);
+void remove_with_lock(struct lock *lock);
+void refresh_priority(void);
 
 #endif /* threads/thread.h */

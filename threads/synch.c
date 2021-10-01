@@ -112,7 +112,7 @@ sema_up (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	if (!list_empty (&sema->waiters)){
-		//project 3
+		//project 3 안해도 될거 같은데 해야할것도 같고
 		list_sort(&sema->waiters, cmp_priority, NULL); // 스레드가 waiters리스트에 있는 동안 우선순위가 변경되었을 경우를 고려하여 waiters list를 정렬
 
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),
@@ -199,8 +199,24 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+	//project 4
+	struct thread *cur = thread_current();
+	struct thread *holder = lock -> holder; // 현재 락을 가지고 있는 소유 스레드
+	//project 4
+	//없으면 바로 차지, 있으면 순서
+	//여기 있다는 것은 순서가 무조건 높기때문에 비교는 안해도 된다
+	if(holder != NULL){
+		cur->wait_on_lock = lock;
+		list_push_back(&lock->holder->donations, &cur->donation_elem); //왜 백에다가 하는거지? 뒤에서 빼면 되니까
+		donate_priority();
+	}
+
 	sema_down (&lock->semaphore);
-	lock->holder = thread_current ();
+
+	//project 4
+	cur->wait_on_lock = NULL;
+
+	lock->holder = cur; //cur로해야하나?
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -232,6 +248,10 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+
+	//project 4
+	remove_with_lock(lock);
+	refresh_priority();
 
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);

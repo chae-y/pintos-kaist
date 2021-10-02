@@ -150,6 +150,8 @@ thread_start (void) {
 
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
+//타이머 이터럽트가 발생하면 thread_tick이 호출되며 현재 스레드가 실행 된 후 타이머 인터럽트가 발생한 횟수를 센다.
+//그 횟수가 4번 이상이면 intr_yield_on_return을 호출하여 인터럽트를 완료 후 thread_yeild를 호출되게 하여 다른 스레드가 실행 될 수 있도록 한다.
 void
 thread_tick (void) {
 	struct thread *t = thread_current ();
@@ -237,6 +239,8 @@ thread_create (const char *name, int priority,
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
+//인터럽트가 꺼진 상태에서 호출 이게 끝나면 인터럽트 킨다
+//스레드 실행을 중지
 void
 thread_block (void) {
 	ASSERT (!intr_context ());
@@ -302,6 +306,7 @@ thread_tid (void) {
 
 /* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
+//현재 스레드를 끝낸다
 void
 thread_exit (void) {
 	ASSERT (!intr_context ());
@@ -319,6 +324,7 @@ thread_exit (void) {
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
+//schedule에 의해 다시 실행 될 때까지 스레드를 대기시키는 함수
 // 현재 스레드를 비활성화 시키고 ready_list에 삽입한다.
 //들어오는 모든 인터럽트 무시함 
 void
@@ -335,6 +341,7 @@ thread_yield (void) {
 		//project 2
 		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
 	}
+	//스케쥴이 리턴 된 훟 인터럽트를 원래대로 돌린다
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -343,7 +350,7 @@ thread_yield (void) {
 //Sets the current thread's priority to new priority. If the current thread no longer has the highest priority, yields.
 //스레드의 우선순위가 변경되었을 때 우선순위에 따라 선점이 발생하도록 한다
 void
-thread_set_priority (int new_priority) { // 시스템 콜
+thread_set_priority (int new_priority) { // 유저
 	// thread_current ()->priority = new_priority;
 	//project 2
 	// if(!thread_mlfqs){///현재는 다단계큐이니까 thread_mlfqs는 다단계 피드백큐일때? 사실 잘 모르겠다
@@ -432,6 +439,7 @@ idle (void *idle_started_ UNUSED) {
 
 /* Function used as the basis for a kernel thread. */
 //이게 실행하는 건가?
+//새로 생성된 스레드의 경우 scheule()에서 리턴 된 것 같으므로 인터럽트를 다시 켠다/
 static void
 kernel_thread (thread_func *function, void *aux) {
 	ASSERT (function != NULL);
@@ -578,7 +586,7 @@ thread_launch (struct thread *th) {
  * This function modify current thread's status to status and then
  * finds another thread to run and switches to it.
  * It's not safe to call printf() in the schedule(). */
-//현재 스레드를 status로 바꾸고 스케줄 실행
+//현재 스레드를 status로 바꾸고 스케줄 실행 - 이거 실행 전에 무조건 인터럽트 끈다
 static void
 do_schedule(int status) {
 	ASSERT (intr_get_level () == INTR_OFF);

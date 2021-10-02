@@ -104,6 +104,7 @@ sema_try_down (struct semaphore *sema) {
    and wakes up one thread of those waiting for SEMA, if any.
 
    This function may be called from an interrupt handler. */
+//자원 분배를 정확히 하려면 down up에서 모두 한번에 하나씩 처리되어야 한다. 따라서 이ㄴ터럽트를 끄고 연산을 수행한다
 void
 sema_up (struct semaphore *sema) {
 	enum intr_level old_level;
@@ -112,7 +113,7 @@ sema_up (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	if (!list_empty (&sema->waiters)){
-		//project 3 안해도 될거 같은데 해야할것도 같고
+		//project 3 안해도 될거 같은데 해야할것도 같고 ->4에서 필요
 		list_sort(&sema->waiters, cmp_priority, NULL); // 스레드가 waiters리스트에 있는 동안 우선순위가 변경되었을 경우를 고려하여 waiters list를 정렬
 
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),

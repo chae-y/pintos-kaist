@@ -218,6 +218,9 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	// project 2 - prioritization
+	test_max_priority();
+
 	return tid;
 }
 
@@ -318,7 +321,6 @@ thread_yield (void) {
 	old_level = intr_disable ();
 	if (curr != idle_thread)
 		// list_push_back (&ready_list, &curr->elem);
-
 		//project 2-priority
 		list_insert_ordered(&ready_list, &curr->elem, &cmp_priority, NULL);
 	do_schedule (THREAD_READY);
@@ -328,7 +330,10 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	thread_current ()->init_priority = new_priority;
+
+    // project 4- priority donation
+	refresh_priority();
 
 	//project 2-priority
 	test_max_priority();
@@ -429,6 +434,12 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	// project 4 - priority donation
+	t->init_priority = priority;
+	t->wait_on_lock = NULL;
+	list_init(&t->donations);
+
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -676,4 +687,61 @@ void test_max_priority(void){
 	struct thread *t = list_entry(e, struct thread, elem);
 	if (run_priority < t->priority)
 		thread_yield();
+}
+
+
+// project 4 - priority donation  
+bool
+thread_compare_donate_priority (const struct list_elem *l, 
+				const struct list_elem *s, void *aux UNUSED)
+{
+	return list_entry (l, struct thread, donation_elem)->priority
+		 > list_entry (s, struct thread, donation_elem)->priority;
+}
+
+
+// project 4 - priority donation
+// 자신의 priority를 필요한 lock을 갖고 있는 thread에게 donate하는 함수
+void 
+donate_priority (void){
+
+	struct thread * cur = thread_current();
+	for(int depth = 0; depth < 8; depth++){
+		if(!cur->wait_on_lock) 
+			break;
+		struct thread * holder = cur->wait_on_lock->holder;
+		holder->priority = cur->priority;
+		cur = holder;
+	}
+}
+
+// project 4 - priority donation
+// donation 리스트에서 thread를 지우는 함수
+void 
+remove_with_lock(struct lock *lock){
+	struct list_elem *e;
+	struct thread *cur = thread_current();
+
+	for (e = list_begin(&cur->donations); e!= list_end(&cur->donations); e = list_next(e)){
+		struct thread *t = list_entry(e, struct thread, donation_elem);
+		//wait_on_lock이 이번에 release 하는 lock이라면 해당 thread를 지운다
+		if(t->wait_on_lock == lock)
+			list_remove(&t->donation_elem);
+	}
+}
+
+// project 4 - priority donation
+// priority 재설정하는 함수
+void
+refresh_priority(void){
+	struct thread *cur = thread_current();
+	cur->priority = cur->init_priority;
+
+	if(!list_empty(&cur->donations)){
+		list_sort(&cur->donations, thread_compare_donate_priority, 0);
+	
+		struct thread *front = list_entry(list_front(&cur->donations), struct thread, donation_elem);
+		if (front->priority >cur->priority)
+			cur->priority = front->priority;
+	}
 }

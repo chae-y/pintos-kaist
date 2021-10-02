@@ -216,7 +216,7 @@ lock_acquire (struct lock *lock) {
 	//project 4
 	cur->wait_on_lock = NULL;
 
-	lock->holder = cur; //cur로해야하나?
+	lock->holder = thread_current (); //cur로해야하나?
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

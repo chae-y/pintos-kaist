@@ -346,15 +346,18 @@ void
 thread_set_priority (int new_priority) { // 시스템 콜
 	// thread_current ()->priority = new_priority;
 	//project 2
-	if(!thread_mlfqs){///현재는 다단계큐이니까 thread_mlfqs는 다단계 피드백큐일때? 사실 잘 모르겠다
-		int previous_priority = thread_current()->priority; //현재꺼를 pre로
-		thread_current()->priority = new_priority;//new를 현재로 바꾼다
+	// if(!thread_mlfqs){///현재는 다단계큐이니까 thread_mlfqs는 다단계 피드백큐일때? 사실 잘 모르겠다
+	// 	int previous_priority = thread_current()->priority; //현재꺼를 pre로
+	// 	thread_current()->priority = new_priority;//new를 현재로 바꾼다
 
-		if(thread_current()->priority < previous_priority) // 순위가 내려갔다면
-			//project 4
-			refresh_priority();
-			test_max_priority(); //readylist의 스레드들과 우선순위를 비교할 수 있도록 한다
-	}
+	// 	if(thread_current()->priority < previous_priority) // 순위가 내려갔다면
+	// 		test_max_priority(); //readylist의 스레드들과 우선순위를 비교할 수 있도록 한다
+	// }
+
+	//project 4
+	thread_current() -> init_priority = new_priority;
+    refresh_priority();
+    test_max_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -745,6 +748,7 @@ void donate_priority(void){
 }
 
 //project 4
+//lock를 해지 했을 때 donations리스트에서 해당 엔트리를 삭제하기 위한 함수
 void remove_with_lock(struct lock *lock){
 	struct list_elem *e;
 	struct thread *cur = thread_current();

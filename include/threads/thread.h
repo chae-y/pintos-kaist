@@ -28,6 +28,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+//project 5
+#define NICE_DEFAULT 0
+#define RECENT_CPU_DEFAULT 0
+#define LOAD_AVG_DEFAULT 0
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -94,10 +99,15 @@ struct thread {
 	int64_t wakeup_tick;	//project 1 
 	int init_priority;	//project 4
 
+	//project 5
+	int nice; //양보하는 정도(잘 양보하는지)
+	int recent_cpu; //최근에 얼마나 많은 cpu 타임을 사용했는지
+	struct list_elem allelem;
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
-	//projet 4
+	//project 4
 	struct list donations; //mutiple donation을 고려하기 위해 사용, 자신에게 priority를 나누어준 스레드들의 리스트
 	struct lock *wait_on_lock; // 해당 스레드가 대기하고 있는 lock자료구조의 주소를 저장, 스레드가 현재 얻기 위해 기다리고 있는 lock으로 스레드는 이 lock이 release 되기를 기다린다. do
 	struct list_elem donation_elem; // mutiple donation을 고려하기 위해 사용
@@ -120,7 +130,7 @@ struct thread {
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
-extern bool thread_mlfqs;
+extern bool thread_mlfqs; // -mlfqs 옵션이 들어오면 true
 
 void thread_init (void);
 void thread_start (void);
@@ -165,5 +175,19 @@ bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *au
 void donate_priority(void);
 void remove_with_lock(struct lock *lock);
 void refresh_priority(void);
+
+//project 5
+int thread_get_nice(void);
+void thread_set_nice(int);
+int thread_get_recent_cpu(void);
+int thread_get_load_avg(void);
+
+//project 5
+void mlfqs_priority(struct thread *t);
+void mlfqs_recent_cpu(struct thread *t);
+void mlfqs_load_avg(void);
+void mlfqs_increment(void);
+void mlfqs_recalc_recent_cpu(void);
+void mlfqs_recalc_priority(void);
 
 #endif /* threads/thread.h */

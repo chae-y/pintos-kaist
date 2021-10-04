@@ -146,6 +146,18 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
 
+	//project 5
+	if(thread_mlfqs){
+		mlfqs_increment();
+		if(ticks%4 == 0){
+			mlfqs_recalc_priority();
+			if(ticks % TIMER_FREQ == 0){
+				mlfqs_recalc_recent_cpu();
+				mlfqs_load_avg();
+			}
+		}
+	}
+
 	//project 1
 	//매 tick마다 sleep리스트를 체크하며 깨어날 스레드가 있는지 확인
 	if(get_next_tick_to_awake() <= ticks){

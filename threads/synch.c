@@ -200,6 +200,13 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+	//project 5
+	if (thread_mlfqs) {
+		sema_down (&lock->semaphore);
+		lock->holder = thread_current ();
+		return ;
+	}
+
 	//project 4
 	struct thread *cur = thread_current();
 	struct thread *holder = lock -> holder; // 현재 락을 가지고 있는 소유 스레드
@@ -208,7 +215,7 @@ lock_acquire (struct lock *lock) {
 	//여기 있다는 것은 순서가 무조건 높기때문에 비교는 안해도 된다
 	if(holder != NULL){
 		cur->wait_on_lock = lock;
-		list_push_back(&lock->holder->donations, &cur->donation_elem); //왜 백에다가 하는거지? 뒤에서 빼면 되니까
+		list_push_back(&lock->holder->donations, &cur->donation_elem);
 		donate_priority();
 	}
 
@@ -218,6 +225,7 @@ lock_acquire (struct lock *lock) {
 	cur->wait_on_lock = NULL;
 
 	lock->holder = thread_current (); //cur로해야하나?
+
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -250,11 +258,18 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
+	//project 5
+	lock->holder = NULL;
+	if (thread_mlfqs) {
+		sema_up (&lock->semaphore);
+		return ;
+	}
+
 	//project 4
 	remove_with_lock(lock);
 	refresh_priority();
 
-	lock->holder = NULL;
+	// lock->holder = NULL;
 	sema_up (&lock->semaphore);
 }
 

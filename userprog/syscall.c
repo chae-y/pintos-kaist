@@ -11,6 +11,8 @@
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
+int write(int fd, const void *buffer, unsigned size);
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -42,50 +44,52 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 	//project 6
-	printf("--------------syscall: %d-------------\n", f->R.rax);
+	// printf("--------------syscall: %d-------------\n", f->R.rax);
+	// hex_dump(f->rsp, f->rsp, USER_STACK - f->rsp, 1);
 	switch(*(uint64_t *) f->rsp){
 		case SYS_HALT:
-			halt();d
+			// halt();
 			break;
 		case SYS_EXIT:
-			exit(f->R.rdi);
+			thread_exit();
+			// exit(f->R.rdi);
 			break;
 		case SYS_FORK:
-			f->R.rax = process_fork(f->R.rdi, f);
+			// f->R.rax = process_fork(f->R.rdi, f);
 			break;
 		case SYS_EXEC:
-			if(exec(f->R.rdi) == -1)
-				exit(-1);
+			// if(exec(f->R.rdi) == -1)
+			// 	exit(-1);
 			break;
 		case SYS_WAIT:
 			break;
 		case SYS_CREATE:
-			check_address(f->R.rdi);
-			f->R.rax = create(f->R.rdi, f->R.rsi);
+			// check_address(f->R.rdi);
+			// f->R.rax = create(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_REMOVE:
-			f->R.rax = remove(f->R.rdi);
+			// f->R.rax = remove(f->R.rdi);
 			break;
 		case SYS_OPEN:
-			f->R.rax = open(f->R.rdi);
+			// f->R.rax = open(f->R.rdi);
 			break;	
 		case SYS_FILESIZE:
-			f->R.rax = filesize(f->R.rdi);
+			// f->R.rax = filesize(f->R.rdi);
 			break;
 		case SYS_READ:
-			f->R.rax = write(f->R.rdi);
+			// f->R.rax = write(f->R.rdi);
 			break;
 		case SYS_WRITE:
-			f->R.rax = write(f->R.rdi, f->R.rsi);
+			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
-			seek(f->R.rdi, f->R.rsi);
+			// seek(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_TELL:
-			f->R.rax = tell(f->R.rsi);
+			// f->R.rax = tell(f->R.rsi);
 			break;
 		case SYS_CLOSE:
-			exit(-1);
+			// exit(-1);
 			break;
 	}
 	// SYS_HALT,                   /* Halt the operating system. */
@@ -103,6 +107,14 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// SYS_TELL,                   /* Report current position in a file. */
 	// SYS_CLOSE,                  /* Close a file. */
 
-	thread_exit ();
 }
 
+int write (int fd, const void *buffer, unsigned size){
+
+	if(fd ==1){
+		putbuf(buffer, size);
+		return size;
+	}
+
+	return -1;
+}

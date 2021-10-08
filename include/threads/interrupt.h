@@ -25,13 +25,13 @@ struct gp_registers {
 	uint64_t r10;
 	uint64_t r9;
 	uint64_t r8;
-	uint64_t rsi;
-	uint64_t rdi;
+	uint64_t rsi;// 첫 인자를 가리키는 주소의 주소 (argv[0])
+	uint64_t rdi;// 인자의 개수 (argc)
 	uint64_t rbp;
-	uint64_t rdx;
-	uint64_t rcx;
-	uint64_t rbx;
-	uint64_t rax;
+	uint64_t rdx; //다른 레지스터를 서포트하는 여분의 레지스터
+	uint64_t rcx; // 반복문에서 카운터로 사용되는 레지스터(systemcall을 호출했던 사용자 프로그램의 return 주소를 가진다)
+	uint64_t rbx; // 메모리 주소를 저장
+	uint64_t rax; // 함수의 리턴값이 저장
 } __attribute__((packed));
 
 struct intr_frame {
@@ -52,12 +52,12 @@ struct intr_frame {
 	uint64_t error_code;
 /* Pushed by the CPU.
    These are the interrupted task's saved registers. */
-	uintptr_t rip;
+	uintptr_t rip; // text 세그먼트 시작주소
 	uint16_t cs;
 	uint16_t __pad5;
 	uint32_t __pad6;
 	uint64_t eflags;
-	uintptr_t rsp;
+	uintptr_t rsp; // 현재 user stack에서 현재 위치를 가리키는 스택 포인터
 	uint16_t ss;
 	uint16_t __pad7;
 	uint32_t __pad8;

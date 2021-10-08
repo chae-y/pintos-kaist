@@ -169,7 +169,7 @@ process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
 
-	printf("\n\n--%s--\n\n", file_name);
+	// printf("\n\n--%s--\n\n", file_name);
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
@@ -192,6 +192,7 @@ process_exec (void *f_name) {
 		argv[argc] = token;
 		argc++;
 	}
+	
 
 	/* And then load the binary */
 	success = load (argv[0], &_if);
@@ -199,9 +200,9 @@ process_exec (void *f_name) {
 	/* If load failed, quit. */
 	if (!success)
 		return -1;
-	else	argument_stack(argv, argc, &_if.rsp);
+	else	argument_stack(argv, argc, &_if.rsp); //project 6
 
-	hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, 1);
+	// hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, 1);
 	palloc_free_page (file_name);
 
 
@@ -661,7 +662,7 @@ setup_stack (struct intr_frame *if_) {
 }
 #endif /* VM */
 
-//project 6
+// project 6
 void argument_stack(char **argv, int argc , void **rsp){
 
 	int total_len =0;
@@ -677,19 +678,14 @@ void argument_stack(char **argv, int argc , void **rsp){
 		argv[i] = *rsp;
 	}
 
-	*rsp -= total_len % 8 != 0 ? 8 - (total_len%4) : 0;
+	*rsp -= ((total_len % 8) != 0 ? 8 - (total_len%8) : 0);
 	*rsp -= 8;
-	**(uint64_t **)rsp = 0;
-
+	**(uint64_t **)rsp = NULL;
+	
 	for(int i=argc-1; 0<=i; i--){
 		*rsp -= 8;
 		**(uint64_t **) rsp = argv[i];
 	}
-	*rsp -= 8;
-	**(uint64_t **) rsp = *rsp+8;
-
-	*rsp -= 8;
-	**(uint64_t **) rsp = argc;
 
 	*rsp -= 8;
 	**(uint64_t **) rsp = 0;

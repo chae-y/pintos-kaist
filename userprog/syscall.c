@@ -41,6 +41,68 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
-	printf ("system call!\n");
+	//project 6
+	printf("--------------syscall: %d-------------\n", f->R.rax);
+	switch(*(uint64_t *) f->rsp){
+		case SYS_HALT:
+			halt();d
+			break;
+		case SYS_EXIT:
+			exit(f->R.rdi);
+			break;
+		case SYS_FORK:
+			f->R.rax = process_fork(f->R.rdi, f);
+			break;
+		case SYS_EXEC:
+			if(exec(f->R.rdi) == -1)
+				exit(-1);
+			break;
+		case SYS_WAIT:
+			break;
+		case SYS_CREATE:
+			check_address(f->R.rdi);
+			f->R.rax = create(f->R.rdi, f->R.rsi);
+			break;
+		case SYS_REMOVE:
+			f->R.rax = remove(f->R.rdi);
+			break;
+		case SYS_OPEN:
+			f->R.rax = open(f->R.rdi);
+			break;	
+		case SYS_FILESIZE:
+			f->R.rax = filesize(f->R.rdi);
+			break;
+		case SYS_READ:
+			f->R.rax = write(f->R.rdi);
+			break;
+		case SYS_WRITE:
+			f->R.rax = write(f->R.rdi, f->R.rsi);
+			break;
+		case SYS_SEEK:
+			seek(f->R.rdi, f->R.rsi);
+			break;
+		case SYS_TELL:
+			f->R.rax = tell(f->R.rsi);
+			break;
+		case SYS_CLOSE:
+			exit(-1);
+			break;
+	}
+	// SYS_HALT,                   /* Halt the operating system. */
+	// SYS_EXIT,                   /* Terminate this process. */
+	// SYS_FORK,                   /* Clone current process. */
+	// SYS_EXEC,                   /* Switch current process. */
+	// SYS_WAIT,                   /* Wait for a child process to die. */
+	// SYS_CREATE,                 /* Create a file. */
+	// SYS_REMOVE,                 /* Delete a file. */
+	// SYS_OPEN,                   /* Open a file. */
+	// SYS_FILESIZE,               /* Obtain a file's size. */
+	// SYS_READ,                   /* Read from a file. */
+	// SYS_WRITE,                  /* Write to a file. */
+	// SYS_SEEK,                   /* Change position in a file. */
+	// SYS_TELL,                   /* Report current position in a file. */
+	// SYS_CLOSE,                  /* Close a file. */
+
 	thread_exit ();
 }
+

@@ -50,6 +50,10 @@ process_create_initd (const char *file_name) {
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
 
+	char *save_ptr;
+	//project 6
+	strtok_r(file_name, " ", &save_ptr);
+
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
@@ -165,6 +169,8 @@ process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
 
+	printf("\n\n--%s--\n\n", file_name);
+
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
@@ -176,13 +182,28 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	//project 6
+	char **argv[64];
+	int argc = 0;
+	char *token;
+	char *save_ptr;
+
+	for(token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)){
+		argv[argc] = token;
+		argc++;
+	}
+
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (argv[0], &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
 	if (!success)
 		return -1;
+	else	argument_stack(argv, argc, &_if.rsp);
+
+	hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, 1);
+	palloc_free_page (file_name);
+
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -204,6 +225,8 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	//project 6
+	for(int i=0; i<1000000000; i++);
 	return -1;
 }
 
@@ -637,3 +660,38 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 #endif /* VM */
+
+//project 6
+void argument_stack(char **argv, int argc , void **rsp){
+
+	int total_len =0;
+	char *token;
+	char *save_ptr;
+
+	for(int i=argc-1; i>-1; i--){
+		//\0도 포함해야하니까
+		int len = strlen(argv[i])+1;
+		*rsp -= len;
+		total_len += len;
+		strlcpy(*rsp, argv[i], len);
+		argv[i] = *rsp;
+	}
+
+	*rsp -= total_len % 8 != 0 ? 8 - (total_len%4) : 0;
+	*rsp -= 8;
+	**(uint64_t **)rsp = 0;
+
+	for(int i=argc-1; 0<=i; i--){
+		*rsp -= 8;
+		**(uint64_t **) rsp = argv[i];
+	}
+	*rsp -= 8;
+	**(uint64_t **) rsp = *rsp+8;
+
+	*rsp -= 8;
+	**(uint64_t **) rsp = argc;
+
+	*rsp -= 8;
+	**(uint64_t **) rsp = 0;
+
+}

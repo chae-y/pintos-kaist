@@ -12,6 +12,8 @@ void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
 int write(int fd, const void *buffer, unsigned size);
+void exit(int status);
+// bool create (const char *file, unsigned initial_size); 
 
 /* System call.
  *
@@ -45,21 +47,20 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 	//project 6
 	// printf("--------------syscall: %d-------------\n", f->R.rax);
-	// hex_dump(f->rsp, f->rsp, USER_STACK - f->rsp, 1);
-	switch(*(uint64_t *) f->rsp){
+	switch(f->R.rax){
 		case SYS_HALT:
 			// halt();
 			break;
 		case SYS_EXIT:
-			thread_exit();
-			// exit(f->R.rdi);
+			// thread_exit();
+			exit(f->R.rdi);
 			break;
 		case SYS_FORK:
 			// f->R.rax = process_fork(f->R.rdi, f);
 			break;
 		case SYS_EXEC:
 			// if(exec(f->R.rdi) == -1)
-			// 	exit(-1);
+				// exit(-1);
 			break;
 		case SYS_WAIT:
 			break;
@@ -110,11 +111,16 @@ syscall_handler (struct intr_frame *f UNUSED) {
 }
 
 int write (int fd, const void *buffer, unsigned size){
-
-	if(fd ==1){
+	if(fd == 1){
 		putbuf(buffer, size);
 		return size;
 	}
 
 	return -1;
 }
+
+void exit(int status){
+	printf ("%s: exit(%d)\n", thread_name(), status);
+	thread_exit();
+}
+

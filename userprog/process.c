@@ -205,6 +205,8 @@ process_exec (void *f_name) {
 	// hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, 1);
 	palloc_free_page (file_name);
 
+	_if.R.rdi = argc;
+	_if.R.rsi = _if.rsp + 8;
 
 	/* Start switched process. */
 	do_iret (&_if);

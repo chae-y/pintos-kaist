@@ -690,6 +690,6 @@ void argument_stack(char **argv, int argc , void **rsp){
 	}
 
 	*rsp -= 8;
-	**(uint64_t **) rsp = 0;
+	**(uint64_t **) rsp = 0; 
 
 }

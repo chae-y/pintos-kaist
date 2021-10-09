@@ -13,6 +13,7 @@ void syscall_handler (struct intr_frame *);
 
 void check_address(void *addr);
 
+void halt(void);
 int write(int fd, const void *buffer, unsigned size);
 void exit(int status);
 // bool create (const char *file, unsigned initial_size); 
@@ -51,7 +52,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// printf("--------------syscall: %d-------------\n", f->R.rax);
 	switch(f->R.rax){
 		case SYS_HALT:
-			// halt();
+			halt();
 			break;
 		case SYS_EXIT:
 			// thread_exit();
@@ -120,6 +121,10 @@ void check_address(void *addr){
 
 }
 
+//pintos를 종료시키는 시스템 콜
+void halt(void){
+	power_off();
+}
 int write (int fd, const void *buffer, unsigned size){
 	if(fd == 1){
 		putbuf(buffer, size);

@@ -45,7 +45,7 @@ process_create_initd (const char *file_name) {
 
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page (0);
+	fn_copy = palloc_get_page (0); //페이지 할당
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
@@ -54,6 +54,7 @@ process_create_initd (const char *file_name) {
 	//project 6
 	strtok_r(file_name, " ", &save_ptr);
 
+	// 첫번째 토큰을 thread_create함수에 스레드 이름으로 전달
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
@@ -187,7 +188,6 @@ process_exec (void *f_name) {
 	int argc = 0;
 	char *token;
 	char *save_ptr;
-
 	for(token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)){
 		argv[argc] = token;
 		argc++;
@@ -346,6 +346,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
+//file_name에서 현재 스레드로 elf실행 파일을 로드합니다. 실행 파일의 진입점을 *rip 및 *rsp에 대한 초기 스택 포인터 저장, 성공하면 t 아니면 f
 static bool
 load (const char *file_name, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
@@ -369,6 +370,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	}
 
 	/* Read and verify executable header. */
+	//elf파일의 헤더 정보를 읽어와 저장
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
 			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
 			|| ehdr.e_type != 2
@@ -383,6 +385,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* Read program headers. */
 	file_ofs = ehdr.e_phoff;
 	for (i = 0; i < ehdr.e_phnum; i++) {
+		//배치정보를 읽어와 저장
 		struct Phdr phdr;
 
 		if (file_ofs < 0 || file_ofs > file_length (file))
@@ -423,6 +426,7 @@ load (const char *file_name, struct intr_frame *if_) {
 						read_bytes = 0;
 						zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
 					}
+					//배치정보를 통해 파일을 메모리에 적재
 					if (!load_segment (file, file_page, (void *) mem_page,
 								read_bytes, zero_bytes, writable))
 						goto done;
@@ -434,6 +438,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	}
 
 	/* Set up stack. */
+	//스택 초기화
 	if (!setup_stack (if_))
 		goto done;
 
@@ -671,6 +676,7 @@ void argument_stack(char **argv, int argc , void **rsp){
 	char *token;
 	char *save_ptr;
 
+	//스택주소를 감소시키면서 인자를 스택에 삽입
 	for(int i=argc-1; i>-1; i--){
 		//\0도 포함해야하니까
 		int len = strlen(argv[i])+1;
@@ -680,10 +686,11 @@ void argument_stack(char **argv, int argc , void **rsp){
 		argv[i] = *rsp;
 	}
 
-	*rsp -= ((total_len % 8) != 0 ? 8 - (total_len%8) : 0);
+	*rsp -= ((total_len % 8) != 0 ? 8 - (total_len%8) : 0); //word-align
 	*rsp -= 8;
 	**(uint64_t **)rsp = NULL;
 	
+	//주소를 스택에 삽입
 	for(int i=argc-1; 0<=i; i--){
 		*rsp -= 8;
 		**(uint64_t **) rsp = argv[i];

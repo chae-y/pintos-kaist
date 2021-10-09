@@ -11,6 +11,8 @@
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
+void check_address(void *addr);
+
 int write(int fd, const void *buffer, unsigned size);
 void exit(int status);
 // bool create (const char *file, unsigned initial_size); 
@@ -107,6 +109,14 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// SYS_SEEK,                   /* Change position in a file. */
 	// SYS_TELL,                   /* Report current position in a file. */
 	// SYS_CLOSE,                  /* Close a file. */
+
+}
+
+//주소 유효성 검사- 포인터가 가리키는 주소가 사용자 영역인지 확인
+void check_address(void *addr){
+	if(!is_user_vaddr(addr)){
+		exit(-1);
+	}
 
 }
 

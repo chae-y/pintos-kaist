@@ -29,6 +29,7 @@ static __inline int64_t syscall (uint64_t num_, uint64_t a1_, uint64_t a2_,
 	return ret;
 }
 
+//뒤에 숫자가 인자 개수
 /* Invokes syscall NUMBER, passing no arguments, and returns the
    return value as an `int'. */
 #define syscall0(NUMBER) ( \

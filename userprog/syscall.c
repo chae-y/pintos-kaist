@@ -9,6 +9,7 @@
 #include "intrinsic.h"
 
 #include "filesys/filesys.h"
+#include "userprog/process.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -17,9 +18,17 @@ void check_address(void *addr);
 
 void halt(void);
 void exit(int status);
+//fork
+tid_t exec(const char *cmd_line);
+int wait(tid_t tid);
 bool create (const char *file, unsigned initial_size); 
 bool remove(const char *file);
+int open(const char *file);
+int filesize(int fd);
+int read(int fd, void *buffer, unsigned size);
 int write(int fd, const void *buffer, unsigned size);
+int read(int fd, void *buffer, unsigned size);
+void close(int fd);
 
 /* System call.
  *
@@ -51,29 +60,27 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
-	//project 6
-	printf("--------------syscall: %d-------------\n", f->R.rax);
+	//project 7
+	// printf("--------------syscall: %d-------------\n", f->R.rax);
 	switch(f->R.rax){
 		case SYS_HALT:
 			halt();
 			break;
 		case SYS_EXIT:
-			// thread_exit();
-			check_address(f->R.rdi);
 			exit(f->R.rdi);
 			break;
 		case SYS_FORK:
 			// f->R.rax = process_fork(f->R.rdi, f);
 			break;
 		case SYS_EXEC:
-			// if(exec(f->R.rdi) == -1)
-				// exit(-1);
+			check_address(f->R.rdi);
+			f->R.rax = exec(f->R.rdi);
 			break;
 		case SYS_WAIT:
+			f->R.rax = wait(f->R.rdi);
 			break;
 		case SYS_CREATE:
 			check_address(f->R.rdi);
-			check_address(f->R.rsi);
 			f->R.rax = create(f->R.rdi, f->R.rsi);
 			break;
 		case SYS_REMOVE:
@@ -81,18 +88,18 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = remove(f->R.rdi);
 			break;
 		case SYS_OPEN:
+			check_address(f->R.rdi);
 			// f->R.rax = open(f->R.rdi);
 			break;	
 		case SYS_FILESIZE:
 			// f->R.rax = filesize(f->R.rdi);
 			break;
 		case SYS_READ:
-			// f->R.rax = write(f->R.rdi);
+			check_address(f->R.rsi);
+			f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_WRITE:
-			check_address(f->R.rdi);
 			check_address(f->R.rsi);
-			check_address(f->R.rdx);
 			f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
 			break;
 		case SYS_SEEK:
@@ -102,7 +109,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			// f->R.rax = tell(f->R.rsi);
 			break;
 		case SYS_CLOSE:
-			// exit(-1);
+			// close(f->R.rdi);
 			break;
 	}
 	// SYS_HALT,                   /* Halt the operating system. */
@@ -124,7 +131,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 
 //주소 유효성 검사- 포인터가 가리키는 주소가 사용자 영역인지 확인
 void check_address(void *addr){
-	if(!is_user_vaddr(addr)){
+	if(addr == NULL || !is_user_vaddr(addr) || pml4_get_page(thread_current()->pml4, addr) == NULL){
 		exit(-1);
 	}
 
@@ -133,6 +140,20 @@ void check_address(void *addr){
 //pintos를 종료시키는 시스템 콜
 void halt(void){
 	power_off();
+}
+
+void exit(int status){
+	printf ("%s: exit(%d)\n", thread_name(), status);
+	thread_current() -> exit_status = status;
+	thread_exit();
+}
+
+tid_t exec(const char *cmd_line){
+	return process_exec(cmd_line);
+}
+
+int wait(tid_t tid){
+	return process_wait(tid);
 }
 
 bool create (const char *file, unsigned initial_size){
@@ -144,6 +165,28 @@ bool remove(const char *file){
 	return filesys_remove(file);
 }
 
+int open(const char *file){
+	return filesys_open(file);
+}
+
+// int filesize(int fd){
+// 	struct file *fileobj = find_file_by_fd(fd);
+// 	if(fileobj == NULL)	return -1;
+// 	return file_length(fileobj);
+// }
+
+int read(int fd, void *buffer, unsigned size){
+	int i;
+	if (fd == 0){
+		for(i=0; i<size; i++){
+			if(((char *)buffer)[i] == '\0'){
+				break;
+			}
+		}
+	}
+	return i;
+}
+
 int write (int fd, const void *buffer, unsigned size){
 	if(fd == 1){
 		putbuf(buffer, size);
@@ -153,8 +196,22 @@ int write (int fd, const void *buffer, unsigned size){
 	return -1;
 }
 
-void exit(int status){
-	printf ("%s: exit(%d)\n", thread_name(), status);
-	thread_exit();
-}
+// int read(int fd, void *buffer, unsigned size){
+// 	struct file *fileobj = find_file_by_fd(fd);
+// 	// if(fileobj == -1){
+// 	// 	return -1;
+// 	// }
+// 	if(fd == 0){
+// 		input_getc();
+// 	}else{
+// 		file_read(fileobj, buffer, size);
+// 	}
+// }
+
+
+// void close(int fd){
+// 	struct file *fileobj = find_file_by_fd(fd);
+// 	if(fileobj == NULL)	return -1;
+// 	file_close(fileobj);
+// }
 

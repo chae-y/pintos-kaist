@@ -9,6 +9,8 @@
 #include "vm/vm.h"
 #endif
 
+#include "threads/synch.h"
+
 
 /* States in a thread's life cycle. */
 enum thread_status {
@@ -116,6 +118,13 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	//project 7
+	struct list child; // 자식리스트
+	struct list_elem child_elem; //자식리스트 element
+	struct semaphore child_lock; //exit세마포어
+	struct semaphore mem_lock; //load세마포어
+	int exit_status; //exit호출 시 종료 status
+
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */

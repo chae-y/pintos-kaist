@@ -59,6 +59,7 @@ process_create_initd (const char *file_name) {
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
+		
 	return tid;
 }
 
@@ -211,6 +212,7 @@ process_exec (void *f_name) {
 	/* Start switched process. */
 	do_iret (&_if);
 	NOT_REACHED ();
+
 }
 
 
@@ -228,21 +230,48 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	//project 6
-	for(int i=0; i<1000000000; i++);
+	//project 7
+	struct list_elem *e;
+	struct thread *t = NULL;
+	int exit_status;
+
+	for(e = list_begin(&(thread_current()->child)); e != list_end(&(thread_current()->child)); e = list_next(e)){
+		t = list_entry(e, struct thread, child_elem);
+		if(child_tid == t->tid){
+			sema_down(&(t->child_lock)); // 부모가 자식의 프로세스가 끝날때까지 기다린다
+			exit_status = (&(t->status));
+			list_remove(&(t->child_elem));
+			sema_up(&(t->mem_lock));
+			return exit_status;
+		}
+	}
+
 	return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
-	struct thread *curr = thread_current ();
+	struct thread *cur = thread_current ();
 	/* TODO: Your code goes here.
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	
+	//project 7
+	uint64_t pm;
+	pm = cur->pml4;
+	if(pm != NULL){
+		cur->pml4 = NULL;
+		pml4_activate(NULL);
+		pml4_destroy(pm);
+	}
 
 	process_cleanup ();
+
+	//project 7
+	sema_up(&cur->child_lock);
+	sema_down(&cur->mem_lock);
 }
 
 /* Free the current process's resources. */

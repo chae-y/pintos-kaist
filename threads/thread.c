@@ -225,7 +225,25 @@ thread_create (const char *name, int priority,
 
 	/* Initialize thread. */
 	init_thread (t, name, priority); //스레드 구조체 초기화
+
+	//project 7
+	t->fdTable = palloc_get_multiple(PAL_ZERO, FDT_PAGES);
+	if (t->fdTable == NULL)
+		return TID_ERROR;
+	t->fdIdx = 2; // 0 : stdin, 1 : stdout
+	// 2-extra
+	t->fdTable[0] = 1; // dummy values to distinguish fd 0 and 1 from NULL
+	t->fdTable[1] = 2;
+	t->stdin_count = 1;
+	t->stdout_count = 1;
+
+
 	tid = t->tid = allocate_tid ();// tid할당
+
+	//project 7
+	// 2-3 Parent child
+	struct thread *cur = thread_current();
+	list_push_back(&cur->child_list, &t->child_elem); // [parent] add new child to child_list
 
 	//여기가 스택인가
 	/* Call the kernel_thread if it scheduled.
@@ -474,12 +492,14 @@ init_thread (struct thread *t, const char *name, int priority) {
 	list_push_back(&all_list, &t->allelem);
 
 	//project 7
-	#ifdef USERPROG
-	sema_init(&(t->child_lock), 0);
-	sema_init(&(t->mem_lock), 0);
-	list_init(&(t->child));
-	list_push_back(&(running_thread()->child), &(t->child_elem));
-	#endif
+	// 2-3 Syscalls
+	list_init(&t->child_list);
+	sema_init(&t->wait_sema, 0);
+	sema_init(&t->fork_sema, 0);
+	sema_init(&t->free_sema, 0);
+
+	// 2-5
+	t->running = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

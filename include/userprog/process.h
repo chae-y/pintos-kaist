@@ -13,4 +13,7 @@ void process_activate (struct thread *next);
 //project 6
 void argument_stack(char **argv, int argc , void **rsp);
 
+//project 7
+struct thread *get_child_with_pid(int pid);
+
 #endif /* userprog/process.h */

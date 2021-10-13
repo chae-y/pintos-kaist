@@ -82,41 +82,109 @@ initd (void *f_name) {
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	struct thread *cur = thread_current();
+	memcpy(&cur->parent_if, if_, sizeof(struct intr_frame));// Pass this intr_frame down to child
+	tid_t tid = thread_create (name, PRI_DEFAULT, __do_fork, cur);
+	if(tid == TID_ERROR)	return TID_ERROR;
+
+	struct thread *child = get_child_with_pid(tid);
+	sema_down(&child->fork_sema);
+	if(child->exit_status == -1){
+		return TID_ERROR;
+	}
+	return tid;
 }
 
 #ifndef VM
 /* Duplicate the parent's address space by passing this function to the
  * pml4_for_each. This is only for the project 2. */
 static bool
-duplicate_pte (uint64_t *pte, void *va, void *aux) {
-	struct thread *current = thread_current ();
-	struct thread *parent = (struct thread *) aux;
+duplicate_pte(uint64_t *pte, void *va, void *aux)
+{
+	struct thread *current = thread_current();
+	struct thread *parent = (struct thread *)aux;
 	void *parent_page;
 	void *newpage;
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	if (is_kernel_vaddr(va))
+	{
+#ifdef DEBUG
+		//printf("[fork-duplicate] fail at step 1 %llx\n", va);
+#endif
+		return true; // return false ends pml4_for_each, which is undesirable - just return true to pass this kernel va
+	}
+	else
+	{
+#ifdef DEBUG
+		printf("[fork-duplicate] pass at step 1 %llx\n", va);
+#endif
+	}
+
+#ifdef DEBUG
+	printf("Is user %d, is kernel %d, writable %d\n", is_user_pte(pte), is_kern_pte(pte), is_writable(pte));
+#endif
 
 	/* 2. Resolve VA from the parent's page map level 4. */
-	parent_page = pml4_get_page (parent->pml4, va);
+	parent_page = pml4_get_page(parent->pml4, va);
+	if (parent_page == NULL)
+	{
+		printf("[fork-duplicate] failed to fetch page for user vaddr 'va'\n"); // #ifdef DEBUG
+		return false;
+	}
+
+#ifdef DEBUG
+	// page table, virtual address 이해
+	// 'pte' here = address pointing to one page table entry
+	// *pte = page table entry = address of the physical frame
+	void *test = ptov(PTE_ADDR(*pte)) + pg_ofs(va); // should be same as parent_page -> Yes!
+	uint64_t va_offset = pg_ofs(va);				// should be 0; va comes from PTE, so there must be no 12bit physical offset
+#endif
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
+	newpage = palloc_get_page(PAL_USER);
+	if (newpage == NULL)
+	{
+		printf("[fork-duplicate] failed to palloc new page\n"); // #ifdef DEBUG
+		return false;
+	}
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
+	memcpy(newpage, parent_page, PGSIZE);
+	writable = is_writable(pte); // *PTE is an address that points to parent_page
 
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
-	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
+	if (!pml4_set_page(current->pml4, va, newpage, writable))
+	{
 		/* 6. TODO: if fail to insert page, do error handling. */
+		printf("Failed to map user virtual page to given physical frame\n"); // #ifdef DEBUG
+		return false;
 	}
+
+#ifdef DEBUG
+	// TEST) is 'va' correctly mapped to newpage?
+	if (pml4_get_page(current->pml4, va) != newpage)
+		printf("Not mapped!"); // never called
+
+	printf("--Completed copy--\n");
+#endif
+
 	return true;
 }
 #endif
+
+//project 7?????
+// Project2-extra
+struct MapElem
+{
+	uintptr_t key;
+	uintptr_t value;
+};
 
 /* A thread function that copies parent's execution context.
  * Hint) parent->tf does not hold the userland context of the process.
@@ -129,11 +197,12 @@ __do_fork (void *aux) {
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
+	parent_if = &parent->parent_if;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-
+	if_.R.rax=0;
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
@@ -155,13 +224,68 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
-	process_init ();
+	// multi-oom) Failed to duplicate?
+	if (parent->fdIdx == FDCOUNT_LIMIT)
+		goto error;
+
+	// Project2-extra) multiple fds sharing same file - use associative map (e.g. dict, hashmap) to duplicate these relationships
+	// other test-cases like multi-oom don't need this feature
+	const int MAPLEN = 10;
+	struct MapElem map[10]; // key - parent's struct file * , value - child's newly created struct file *
+	int dupCount = 0;		// index for filling map
+
+	for (int i = 0; i < FDCOUNT_LIMIT; i++)
+	{
+		struct file *file = parent->fdTable[i];
+		if (file == NULL)
+			continue;
+
+		// Project2-extra) linear search on key-pair array
+		// If 'file' is already duplicated in child, don't duplicate again but share it
+		bool found = false;
+		for (int j = 0; j < MAPLEN; j++)
+		{
+			if (map[j].key == file)
+			{
+				found = true;
+				current->fdTable[i] = map[j].value;
+				break;
+			}
+		}
+		if (!found)
+		{
+			struct file *new_file;
+			if (file > 2)
+				new_file = file_duplicate(file);
+			else
+				new_file = file; // 1 STDIN, 2 STDOUT
+
+			current->fdTable[i] = new_file;
+			if (dupCount < MAPLEN)
+			{
+				map[dupCount].key = file;
+				map[dupCount++].value = new_file;
+			}
+		}
+	}
+	current->fdIdx = parent->fdIdx;
+
+#ifdef DEBUG
+	printf("[do_fork] %s Ready to switch!\n", current->name);
+#endif
+
+	// child loaded successfully, wake up parent in process_fork
+	sema_up(&current->fork_sema);
+
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
-		do_iret (&if_);
+		do_iret(&if_);
+
 error:
-	thread_exit ();
+	current->exit_status = TID_ERROR;
+	sema_up(&current->fork_sema);
+	exit(TID_ERROR);
 }
 
 /* Switch the current execution context to the f_name.
@@ -231,22 +355,19 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 	//project 7
-	struct list_elem *e;
-	struct thread *t = NULL;
-	int exit_status;
+	struct thread *child = get_child_with_pid(child_tid);
 
-	for(e = list_begin(&(thread_current()->child)); e != list_end(&(thread_current()->child)); e = list_next(e)){
-		t = list_entry(e, struct thread, child_elem);
-		if(child_tid == t->tid){
-			sema_down(&(t->child_lock)); // 부모가 자식의 프로세스가 끝날때까지 기다린다
-			exit_status = (&(t->status));
-			list_remove(&(t->child_elem));
-			sema_up(&(t->mem_lock));
-			return exit_status;
-		}
+	if (child == NULL){
+		return -1;
 	}
 
-	return -1;
+	sema_down(&child->wait_sema);
+
+	int exit_status = child->exit_status;
+
+	list_remove(&child->child_elem);
+	sema_up(&child->free_sema); // wake-up child in process_exit - proceed with thread_exit
+	return exit_status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -259,19 +380,22 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	
 	//project 7
-	uint64_t pm;
-	pm = cur->pml4;
-	if(pm != NULL){
-		cur->pml4 = NULL;
-		pml4_activate(NULL);
-		pml4_destroy(pm);
+	// P2-4 Close all opened files
+	for (int i = 0; i < FDCOUNT_LIMIT; i++)
+	{
+		close(i);
 	}
+	//palloc_free_page(cur->fdTable);
+	palloc_free_multiple(cur->fdTable, FDT_PAGES); // multi-oom
 
-	process_cleanup ();
+	// P2-5 Close current executable run by this process
+	file_close(cur->running);
 
-	//project 7
-	sema_up(&cur->child_lock);
-	sema_down(&cur->mem_lock);
+	process_cleanup();
+
+	// //project 7
+	sema_up(&cur->wait_sema);
+	sema_down(&cur->free_sema);
 }
 
 /* Free the current process's resources. */
@@ -728,4 +852,17 @@ void argument_stack(char **argv, int argc , void **rsp){
 	*rsp -= 8;
 	**(uint64_t **) rsp = 0;
 
+
+}
+//project 7
+struct thread *get_child_with_pid(int pid){
+	struct thread *cur = thread_current();
+	struct list *child_list = &cur->child_list;
+
+	struct list_elem *e;
+	for(e = list_begin(child_list); e != list_end(child_list); e = list_next(e)){
+		struct thread *t = list_entry(e, struct thread, child_elem);
+		if(t->tid == pid)	return t;
+	}
+	return NULL;
 }

@@ -114,16 +114,31 @@ struct thread {
 	struct lock *wait_on_lock; // 해당 스레드가 대기하고 있는 lock자료구조의 주소를 저장, 스레드가 현재 얻기 위해 기다리고 있는 lock으로 스레드는 이 lock이 release 되기를 기다린다. do
 	struct list_elem donation_elem; // mutiple donation을 고려하기 위해 사용
 
+	/* Project 2 */
+	// 2-3 Parent-child hierarchy
+	struct list child_list;		 // keep children
+	struct list_elem child_elem; // used to put current thread into 'children' list
+	// 2-3 wait syscall
+	struct semaphore wait_sema; // used by parent to wait for child
+	int exit_status;			// used to deliver child exit_status to parent
+	// 2-3 fork syscall
+	struct intr_frame parent_if; // to preserve my current intr_frame and pass it down to child in fork ('parent_if' in child's perspective)
+	struct semaphore fork_sema;	 // parent wait (process_wait) until child fork completes (__do_fork)
+	struct semaphore free_sema;	 // Postpone child termination (process_exit) until parent receives its exit_status in 'wait' (process_wait)
+	// 2-4 file descripter
+	struct file **fdTable; // allocation in threac_create (thread.c)
+	int fdIdx;			   // an index of an open spot in fdTable
+	// 2-5 deny exec writes
+	struct file *running; // executable ran by current process (process.c load, process_exit)
+	// 2-extra - count the number of open stdin/stdout
+	// dup2 may copy stdin or stdout; stdin or stdout is not really closed until these counts goes 0
+	int stdin_count;
+	int stdout_count;
+
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
-	//project 7
-	struct list child; // 자식리스트
-	struct list_elem child_elem; //자식리스트 element
-	struct semaphore child_lock; //exit세마포어
-	struct semaphore mem_lock; //load세마포어
-	int exit_status; //exit호출 시 종료 status
 
 #endif
 #ifdef VM
@@ -198,5 +213,9 @@ void mlfqs_load_avg(void);
 void mlfqs_increment(void);
 void mlfqs_recalc_recent_cpu(void);
 void mlfqs_recalc_priority(void);
+
+//project 7
+#define FDT_PAGES 3						  // pages to allocate for file descriptor tables (thread_create, process_exit)
+#define FDCOUNT_LIMIT FDT_PAGES *(1 << 9) // Limit fdIdx
 
 #endif /* threads/thread.h */

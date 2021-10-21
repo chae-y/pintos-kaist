@@ -171,15 +171,40 @@ vm_do_claim_page (struct page *page) {
 	return swap_in (page, frame->kva);
 }
 
+static uint64_t
+page_hash (const struct hash_elem *p_, void *aux UNUSED){
+	// hash entry는 hash_elem pointer을 여기선 page struct pointer로 바꿔줌
+	const struct page *p = hash_entry(p_, struct page, hash_elem);
+
+	/* Returns a hash of the SIZE bytes in BUF. */
+	// uint64_t hash_bytes (const void *buf_, size_t size) 
+	return hash_bytes(&p->va, sizeof p->va);
+}
+
+static bool
+page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED){
+	const struct page *a = hash_entry(a_, struct page, hash_elem);
+	const struct page *b = hash_entry(b_, struct page, hash_elem);
+	return a->va < b->va;
+}
+
+
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	struct hash* page_table = malloc(sizeof(struct hash));
+	// hash_init (struct hash *h, hash_hash_func *hash, hash_less_func *less, void *aux)
+	/* Initializes hash table H to compute hash values using HASH and
+       compare hash elements using LESS, given auxiliary data AUX. */
+	hash_init(page_table, page_hash, page_less, NULL);
+	spt -> page_table = page_table;
 }
 
 /* Copy supplemental page table from src to dst */
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
+	
 }
 
 /* Free the resource hold by the supplemental page table */
